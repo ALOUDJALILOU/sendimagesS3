@@ -19,13 +19,7 @@ class UploadImagController extends Controller
     {
         return view('Images.create');
     }
-    public function progress()
-    {
-        return response()->json([
-            'progress' => session('progress', 0),
-        ]);
-    }
-
+      
     public function store(Request $request)
     {
         $validator = Validator::make($request->all(), [
@@ -38,29 +32,24 @@ class UploadImagController extends Controller
         }
 
         $images = $request->file('images');
-        $uploadedImages = [];
-        $totalImages = count($images);
-        $uploadedCount = 0;
 
-        foreach ($images as  $key=> $image) {
+        $total = count($images);
+        $progress = 0;
+
+        foreach ($images as $image) {
             $filename = $image->getClientOriginalName();
             $path = $image->storeAs('images', $filename);
-            $uploadedImages[] = $filename;
 
-            // Upload image to AWS S3 using queue job
-            $job = new S3ImageUploadJob(storage_path('app/' . $path));
-            dispatch($job);
-            // Increment progress for each image uploaded
-            $uploadedCount++;
-            $progress = ceil(($uploadedCount / $totalImages) * 100);
+            S3ImageUploadJob::dispatch(storage_path('app/' . $path));
 
-            session(['progress' => $progress]);
+            $progress++;
+            session(['progress' => intval($progress / $total * 100)]);
+        }
 
         return response()->json([
             'progress' => session('progress'),
-            'message' => $key+1 . ' Images téléchargées sur bucket S3 avec succès '
-        ]);
-        }
 
+            'message' => $total. 'Images téléchargées sur bucket S3 avec succès '
+        ]);
     }
 }
